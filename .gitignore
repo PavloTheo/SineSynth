@@ -1,0 +1,20 @@
+# macOS
+.DS_Store
+
+# Xcode / build
+build/
+DerivedData/
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcuserstate
+
+# JUCE generated build artifacts
+Builds/**/build/
+Builds/**/DerivedData/
+
+# Plugin binaries / intermediates
+*.component
+*.vst3
+*.app
+*.dSYM/
