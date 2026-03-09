@@ -19,3 +19,4 @@ Builds/**/DerivedData/
 *.app
 *.dSYM/
 *.xcodeproj/xcuserdata/**
+**/xcuserdata/**
