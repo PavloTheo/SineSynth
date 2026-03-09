@@ -18,3 +18,4 @@ Builds/**/DerivedData/
 *.vst3
 *.app
 *.dSYM/
+*.xcodeproj/xcuserdata/**
