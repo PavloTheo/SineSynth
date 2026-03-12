@@ -1,9 +1,11 @@
 /*
+
   ==============================================================================
 
     This file contains the basic framework code for a JUCE plugin processor.
 
   ==============================================================================
+
 */
 
 #include "PluginProcessor.h"
@@ -107,6 +109,35 @@ juce::AudioProcessorValueTreeState::ParameterLayout SineSynthAudioProcessor::cre
         juce::NormalisableRange<float> (20.0f, 2000.0f, 1.0f),
         440.0f));
 
+    params.push_back (std::make_unique<juce::AudioParameterBool> (
+        juce::ParameterID { "gate", 1 },
+        "Gate",
+        false));
+
+    params.push_back (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { "attack", 1 },
+        "Attack",
+        juce::NormalisableRange<float> (0.001f, 5.0f, 0.001f, 0.5f),
+        0.1f));
+
+    params.push_back (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { "decay", 1 },
+        "Decay",
+        juce::NormalisableRange<float> (0.001f, 5.0f, 0.001f, 0.5f),
+        0.2f));
+
+    params.push_back (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { "sustain", 1 },
+        "Sustain",
+        juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f),
+        0.8f));
+
+    params.push_back (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { "release", 1 },
+        "Release",
+        juce::NormalisableRange<float> (0.001f, 5.0f, 0.001f, 0.5f),
+        0.4f));
+
     return { params.begin(), params.end() };
 }
 
@@ -117,12 +148,14 @@ void SineSynthAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBl
 
     currentSampleRate = sampleRate;
     phase = 0.0;
-    
-    smoothedGain.reset(sampleRate, 0.05);
-    smoothedFrequency.reset(sampleRate, 0.02);
-    
-    smoothedGain.setCurrentAndTargetValue(apvts.getRawParameterValue("gain")->load());
-    smoothedFrequency.setCurrentAndTargetValue(apvts.getRawParameterValue("frequency")->load());
+
+    smoothedGain.reset (sampleRate, 0.05);
+    smoothedFrequency.reset (sampleRate, 0.02);
+
+    smoothedGain.setCurrentAndTargetValue (apvts.getRawParameterValue ("gain")->load());
+    smoothedFrequency.setCurrentAndTargetValue (apvts.getRawParameterValue ("frequency")->load());
+
+    adsr.setSampleRate (sampleRate);
 }
 
 void SineSynthAudioProcessor::releaseResources()
@@ -161,29 +194,32 @@ void SineSynthAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
 {
     juce::ScopedNoDenormals noDenormals;
     juce::ignoreUnused (midiMessages);
-    
+
     const auto totalNumInputChannels  = getTotalNumInputChannels();
     const auto totalNumOutputChannels = getTotalNumOutputChannels();
     const auto numSamples = buffer.getNumSamples();
-    
+
     smoothedGain.setTargetValue (apvts.getRawParameterValue ("gain")->load());
     smoothedFrequency.setTargetValue (apvts.getRawParameterValue ("frequency")->load());
 
-    // In case we have more outputs than inputs, this code clears any output
-    // channels that didn't contain input data, (because these aren't
-    // guaranteed to be empty - they may contain garbage).
-    // This is here to avoid people getting screaming feedback
-    // when they first compile a plugin, but obviously you don't need to keep
-    // this code if your algorithm always overwrites all the output channels.
+    adsrParams.attack = apvts.getRawParameterValue ("attack")->load();
+    adsrParams.decay = apvts.getRawParameterValue ("decay")->load();
+    adsrParams.sustain = apvts.getRawParameterValue ("sustain")->load();
+    adsrParams.release = apvts.getRawParameterValue ("release")->load();
+    adsr.setParameters (adsrParams);
+
+    const bool gateOn = apvts.getRawParameterValue ("gate")->load() > 0.5f;
+
+    if (gateOn && ! wasGateOn)
+        adsr.noteOn();
+    else if (! gateOn && wasGateOn)
+        adsr.noteOff();
+
+    wasGateOn = gateOn;
+
     for (auto ch = totalNumInputChannels; ch < totalNumOutputChannels; ++ch)
         buffer.clear (ch, 0, numSamples);
 
-    // This is the place where you'd normally do the guts of your plugin's
-    // audio processing...
-    // Make sure to reset the state if your inner loop is processing
-    // the samples and the outer loop is handling the channels.
-    // Alternatively, you can process the samples with the channels
-    // interleaved by keeping the same state.
     if (currentSampleRate <= 0.0)
         return;
 
@@ -191,8 +227,8 @@ void SineSynthAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
     {
         const auto currentGain = smoothedGain.getNextValue();
         const auto currentFrequency = smoothedFrequency.getNextValue();
-        
-        const float output = currentGain * std::sin (phase);
+        const float env = adsr.getNextSample();
+        const float output = currentGain * std::sin ((float) phase) * env;
 
         for (int channel = 0; channel < totalNumOutputChannels; ++channel)
             buffer.setSample (channel, sample, output);

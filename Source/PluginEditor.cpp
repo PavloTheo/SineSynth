@@ -1,9 +1,11 @@
 /*
+
   ==============================================================================
 
     This file contains the basic framework code for a JUCE plugin editor.
 
   ==============================================================================
+
 */
 
 #include "PluginProcessor.h"
@@ -21,13 +23,47 @@ SineSynthAudioProcessorEditor::SineSynthAudioProcessorEditor (SineSynthAudioProc
     frequencySlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 60, 20);
     addAndMakeVisible (frequencySlider);
 
-    gainAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+    gainAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
         audioProcessor.getAPVTS(), "gain", gainSlider);
 
-    frequencyAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+    frequencyAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
         audioProcessor.getAPVTS(), "frequency", frequencySlider);
 
-    setSize (400, 300);
+    gateButton.setButtonText ("Gate");
+    addAndMakeVisible (gateButton);
+
+    attackSlider.setSliderStyle (juce::Slider::Rotary);
+    attackSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 60, 20);
+    addAndMakeVisible (attackSlider);
+
+    decaySlider.setSliderStyle (juce::Slider::Rotary);
+    decaySlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 60, 20);
+    addAndMakeVisible (decaySlider);
+
+    sustainSlider.setSliderStyle (juce::Slider::Rotary);
+    sustainSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 60, 20);
+    addAndMakeVisible (sustainSlider);
+
+    releaseSlider.setSliderStyle (juce::Slider::Rotary);
+    releaseSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 60, 20);
+    addAndMakeVisible (releaseSlider);
+
+    gateAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (
+        audioProcessor.getAPVTS(), "gate", gateButton);
+
+    attackAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
+        audioProcessor.getAPVTS(), "attack", attackSlider);
+
+    decayAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
+        audioProcessor.getAPVTS(), "decay", decaySlider);
+
+    sustainAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
+        audioProcessor.getAPVTS(), "sustain", sustainSlider);
+
+    releaseAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
+        audioProcessor.getAPVTS(), "release", releaseSlider);
+
+    setSize (420, 300);
 }
 
 SineSynthAudioProcessorEditor::~SineSynthAudioProcessorEditor()
@@ -47,6 +83,13 @@ void SineSynthAudioProcessorEditor::paint (juce::Graphics& g)
 
 void SineSynthAudioProcessorEditor::resized ()
 {
-    gainSlider.setBounds (60, 100, 120, 120);
-    frequencySlider.setBounds (220, 100, 120, 120);
+    gateButton.setBounds (20, 20, 80, 30);
+
+    gainSlider.setBounds (20, 70, 100, 100);
+    frequencySlider.setBounds (140, 70, 100, 100);
+
+    attackSlider.setBounds (20, 190, 80, 80);
+    decaySlider.setBounds (110, 190, 80, 80);
+    sustainSlider.setBounds (200, 190, 80, 80);
+    releaseSlider.setBounds (290, 190, 80, 80);
 }
