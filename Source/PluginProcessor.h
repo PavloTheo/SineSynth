@@ -17,6 +17,11 @@ class SineSynthAudioProcessor  : public juce::AudioProcessor
 {
     
 public:
+    
+    juce::AudioProcessorValueTreeState& getAPVTS() { return apvts; }
+    
+    static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
+    
     //==============================================================================
     SineSynthAudioProcessor();
     ~SineSynthAudioProcessor() override;
@@ -55,8 +60,14 @@ public:
     void setStateInformation (const void* data, int sizeInBytes) override;
 
 private:
+    juce::AudioProcessorValueTreeState apvts;
+    
     double currentSampleRate = 44100.0;
     double phase = 0.0;
+    
+    juce::SmoothedValue<float> smoothedGain;
+    juce::SmoothedValue<float> smoothedFrequency;
+    
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SineSynthAudioProcessor)
 };

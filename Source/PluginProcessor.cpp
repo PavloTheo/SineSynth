@@ -19,7 +19,8 @@ SineSynthAudioProcessor::SineSynthAudioProcessor()
                       #endif
                        .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
                      #endif
-                       )
+                       ),
+        apvts (*this, nullptr, "Parameters", createParameterLayout())
 #endif
 {
 }
@@ -90,6 +91,25 @@ void SineSynthAudioProcessor::changeProgramName (int index, const juce::String& 
 {
 }
 
+juce::AudioProcessorValueTreeState::ParameterLayout SineSynthAudioProcessor::createParameterLayout()
+{
+    std::vector<std::unique_ptr<juce::RangedAudioParameter>> params;
+
+    params.push_back (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { "gain", 1 },
+        "Gain",
+        juce::NormalisableRange<float> (0.0f, 0.25f, 0.001f),
+        0.1f));
+
+    params.push_back (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { "frequency", 1 },
+        "Frequency",
+        juce::NormalisableRange<float> (20.0f, 2000.0f, 1.0f),
+        440.0f));
+
+    return { params.begin(), params.end() };
+}
+
 //==============================================================================
 void SineSynthAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
@@ -97,6 +117,12 @@ void SineSynthAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBl
 
     currentSampleRate = sampleRate;
     phase = 0.0;
+    
+    smoothedGain.reset(sampleRate, 0.05);
+    smoothedFrequency.reset(sampleRate, 0.02);
+    
+    smoothedGain.setCurrentAndTargetValue(apvts.getRawParameterValue("gain")->load());
+    smoothedFrequency.setCurrentAndTargetValue(apvts.getRawParameterValue("frequency")->load());
 }
 
 void SineSynthAudioProcessor::releaseResources()
@@ -139,6 +165,9 @@ void SineSynthAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
     const auto totalNumInputChannels  = getTotalNumInputChannels();
     const auto totalNumOutputChannels = getTotalNumOutputChannels();
     const auto numSamples = buffer.getNumSamples();
+    
+    smoothedGain.setTargetValue (apvts.getRawParameterValue ("gain")->load());
+    smoothedFrequency.setTargetValue (apvts.getRawParameterValue ("frequency")->load());
 
     // In case we have more outputs than inputs, this code clears any output
     // channels that didn't contain input data, (because these aren't
@@ -160,12 +189,15 @@ void SineSynthAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
 
     for (int sample = 0; sample < numSamples; ++sample)
     {
-        const float output = 0.1f * std::sin ((float) phase);
+        const auto currentGain = smoothedGain.getNextValue();
+        const auto currentFrequency = smoothedFrequency.getNextValue();
+        
+        const float output = currentGain * std::sin (phase);
 
         for (int channel = 0; channel < totalNumOutputChannels; ++channel)
             buffer.setSample (channel, sample, output);
 
-        phase += 2.0 * juce::MathConstants<double>::pi * 440.0 / currentSampleRate;
+        phase += 2.0 * juce::MathConstants<double>::pi * currentFrequency / currentSampleRate;
 
         if (phase >= 2.0 * juce::MathConstants<double>::pi)
             phase -= 2.0 * juce::MathConstants<double>::pi;
