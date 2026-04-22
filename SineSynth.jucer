@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <JUCERPROJECT id="OkvM9a" name="SineSynth" projectType="audioplug" useAppConfig="0"
-              addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1">
+              addUsingNamespaceToJuceHeader="0" jucerFormatVersion="1" pluginCharacteristicsValue="pluginIsSynth,pluginWantsMidiIn">
   <MAINGROUP id="MawrK1" name="SineSynth">
     <GROUP id="{7EE61337-89D5-8060-F88E-9EAF62DE3FA4}" name="Source">
       <FILE id="Fr6DsH" name="PluginProcessor.cpp" compile="1" resource="0"

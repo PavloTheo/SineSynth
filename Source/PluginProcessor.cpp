@@ -71,8 +71,7 @@ double SineSynthAudioProcessor::getTailLengthSeconds() const
 
 int SineSynthAudioProcessor::getNumPrograms()
 {
-    return 1;   // NB: some hosts don't cope very well if you tell them there are 0 programs,
-                // so this should be at least 1, even if you're not really implementing programs.
+    return 1;
 }
 
 int SineSynthAudioProcessor::getCurrentProgram()
@@ -82,15 +81,18 @@ int SineSynthAudioProcessor::getCurrentProgram()
 
 void SineSynthAudioProcessor::setCurrentProgram (int index)
 {
+    juce::ignoreUnused (index);
 }
 
 const juce::String SineSynthAudioProcessor::getProgramName (int index)
 {
+    juce::ignoreUnused (index);
     return {};
 }
 
 void SineSynthAudioProcessor::changeProgramName (int index, const juce::String& newName)
 {
+    juce::ignoreUnused (index, newName);
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout SineSynthAudioProcessor::createParameterLayout()
@@ -138,6 +140,12 @@ juce::AudioProcessorValueTreeState::ParameterLayout SineSynthAudioProcessor::cre
         juce::NormalisableRange<float> (0.001f, 5.0f, 0.001f, 0.5f),
         0.4f));
 
+    params.push_back (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { "cutoff", 1 },
+        "Cutoff",
+        juce::NormalisableRange<float> (20.0f, 20000.0f, 1.0f, 0.5f),
+        20000.0f));
+
     return { params.begin(), params.end() };
 }
 
@@ -151,17 +159,28 @@ void SineSynthAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBl
 
     smoothedGain.reset (sampleRate, 0.05);
     smoothedFrequency.reset (sampleRate, 0.02);
+    smoothedCutoff.reset (sampleRate, 0.05);
 
     smoothedGain.setCurrentAndTargetValue (apvts.getRawParameterValue ("gain")->load());
     smoothedFrequency.setCurrentAndTargetValue (apvts.getRawParameterValue ("frequency")->load());
+    smoothedCutoff.setCurrentAndTargetValue (apvts.getRawParameterValue ("cutoff")->load());
 
     adsr.setSampleRate (sampleRate);
+
+    const auto initialCutoff = juce::jlimit (20.0f,
+                                             static_cast<float> (sampleRate * 0.5 - 1.0),
+                                             smoothedCutoff.getCurrentValue());
+    const auto coefficients = juce::IIRCoefficients::makeLowPass (sampleRate, initialCutoff);
+
+    for (auto& filter : filters)
+    {
+        filter.reset();
+        filter.setCoefficients (coefficients);
+    }
 }
 
 void SineSynthAudioProcessor::releaseResources()
 {
-    // When playback stops, you can use this as an opportunity to free up any
-    // spare memory, etc.
 }
 
 #ifndef JucePlugin_PreferredChannelConfigurations
@@ -171,15 +190,10 @@ bool SineSynthAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts
     juce::ignoreUnused (layouts);
     return true;
   #else
-    // This is the place where you check if the layout is supported.
-    // In this template code we only support mono or stereo.
-    // Some plugin hosts, such as certain GarageBand versions, will only
-    // load plugins that support stereo bus layouts.
     if (layouts.getMainOutputChannelSet() != juce::AudioChannelSet::mono()
      && layouts.getMainOutputChannelSet() != juce::AudioChannelSet::stereo())
         return false;
 
-    // This checks if the input layout matches the output layout
    #if ! JucePlugin_IsSynth
     if (layouts.getMainOutputChannelSet() != layouts.getMainInputChannelSet())
         return false;
@@ -201,6 +215,7 @@ void SineSynthAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
 
     smoothedGain.setTargetValue (apvts.getRawParameterValue ("gain")->load());
     smoothedFrequency.setTargetValue (apvts.getRawParameterValue ("frequency")->load());
+    smoothedCutoff.setTargetValue (apvts.getRawParameterValue ("cutoff")->load());
 
     adsrParams.attack = apvts.getRawParameterValue ("attack")->load();
     adsrParams.decay = apvts.getRawParameterValue ("decay")->load();
@@ -227,11 +242,24 @@ void SineSynthAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
     {
         const auto currentGain = smoothedGain.getNextValue();
         const auto currentFrequency = smoothedFrequency.getNextValue();
+        const auto currentCutoff = smoothedCutoff.getNextValue();
+
+        const auto limitedCutoff = juce::jlimit (20.0f,
+                                                 static_cast<float> (currentSampleRate * 0.5 - 1.0),
+                                                 currentCutoff);
+        const auto coefficients = juce::IIRCoefficients::makeLowPass (currentSampleRate, limitedCutoff);
+
+        for (auto& filter : filters)
+            filter.setCoefficients (coefficients);
+
         const float env = adsr.getNextSample();
         const float output = currentGain * std::sin ((float) phase) * env;
 
         for (int channel = 0; channel < totalNumOutputChannels; ++channel)
-            buffer.setSample (channel, sample, output);
+        {
+            auto filteredOutput = filters[static_cast<size_t> (channel)].processSingleSampleRaw (output);
+            buffer.setSample (channel, sample, filteredOutput);
+        }
 
         phase += 2.0 * juce::MathConstants<double>::pi * currentFrequency / currentSampleRate;
 
@@ -243,7 +271,7 @@ void SineSynthAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
 //==============================================================================
 bool SineSynthAudioProcessor::hasEditor() const
 {
-    return true; // (change this to false if you choose to not supply an editor)
+    return true;
 }
 
 juce::AudioProcessorEditor* SineSynthAudioProcessor::createEditor()
@@ -254,19 +282,15 @@ juce::AudioProcessorEditor* SineSynthAudioProcessor::createEditor()
 //==============================================================================
 void SineSynthAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
-    // You should use this method to store your parameters in the memory block.
-    // You could do that either as raw data, or use the XML or ValueTree classes
-    // as intermediaries to make it easy to save and load complex data.
+    juce::ignoreUnused (destData);
 }
 
 void SineSynthAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
-    // You should use this method to restore your parameters from this memory block,
-    // whose contents will have been created by the getStateInformation() call.
+    juce::ignoreUnused (data, sizeInBytes);
 }
 
 //==============================================================================
-// This creates new instances of the plugin..
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
     return new SineSynthAudioProcessor();

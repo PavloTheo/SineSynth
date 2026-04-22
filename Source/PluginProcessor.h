@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <array>
 #include <JuceHeader.h>
 
 //==============================================================================
@@ -67,6 +68,13 @@ private:
     
     juce::SmoothedValue<float> smoothedGain;
     juce::SmoothedValue<float> smoothedFrequency;
+    juce::SmoothedValue<float> smoothedCutoff;
+    
+    juce::ADSR adsr;
+    juce::ADSR::Parameters adsrParams;
+    bool wasGateOn = false;
+    
+    std::array<juce::IIRFilter, 2> filters;
     
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SineSynthAudioProcessor)

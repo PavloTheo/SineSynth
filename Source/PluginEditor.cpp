@@ -13,8 +13,17 @@
 
 //==============================================================================
 SineSynthAudioProcessorEditor::SineSynthAudioProcessorEditor (SineSynthAudioProcessor& p)
-    : AudioProcessorEditor (&p), audioProcessor (p)
+    : AudioProcessorEditor (p), audioProcessor (p)
 {
+    
+    cutoffSlider.setSliderStyle(juce::Slider::Rotary);
+    cutoffSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 60, 20);
+    addAndMakeVisible(cutoffSlider);
+
+    cutoffAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+    audioProcessor.getAPVTS(), "cutoff", cutoffSlider);
+    
+    
     gainSlider.setSliderStyle (juce::Slider::Rotary);
     gainSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 60, 20);
     addAndMakeVisible (gainSlider);
@@ -63,7 +72,7 @@ SineSynthAudioProcessorEditor::SineSynthAudioProcessorEditor (SineSynthAudioProc
     releaseAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
         audioProcessor.getAPVTS(), "release", releaseSlider);
 
-    setSize (420, 300);
+    setSize (520, 300);
 }
 
 SineSynthAudioProcessorEditor::~SineSynthAudioProcessorEditor()
@@ -83,6 +92,7 @@ void SineSynthAudioProcessorEditor::paint (juce::Graphics& g)
 
 void SineSynthAudioProcessorEditor::resized ()
 {
+    cutoffSlider.setBounds(260, 70, 100, 100);
     gateButton.setBounds (20, 20, 80, 30);
 
     gainSlider.setBounds (20, 70, 100, 100);
