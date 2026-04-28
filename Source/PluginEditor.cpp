@@ -15,15 +15,13 @@
 SineSynthAudioProcessorEditor::SineSynthAudioProcessorEditor (SineSynthAudioProcessor& p)
     : AudioProcessorEditor (p), audioProcessor (p)
 {
-    
-    cutoffSlider.setSliderStyle(juce::Slider::Rotary);
-    cutoffSlider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 60, 20);
-    addAndMakeVisible(cutoffSlider);
+    cutoffSlider.setSliderStyle (juce::Slider::Rotary);
+    cutoffSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 60, 20);
+    addAndMakeVisible (cutoffSlider);
 
-    cutoffAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
-    audioProcessor.getAPVTS(), "cutoff", cutoffSlider);
-    
-    
+    cutoffAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
+        audioProcessor.getAPVTS(), "cutoff", cutoffSlider);
+
     gainSlider.setSliderStyle (juce::Slider::Rotary);
     gainSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 60, 20);
     addAndMakeVisible (gainSlider);
@@ -37,6 +35,12 @@ SineSynthAudioProcessorEditor::SineSynthAudioProcessorEditor (SineSynthAudioProc
 
     frequencyAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
         audioProcessor.getAPVTS(), "frequency", frequencySlider);
+
+    waveformBox.addItemList ({ "Sine", "Saw", "Square" }, 1);
+    addAndMakeVisible (waveformBox);
+
+    waveformAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
+        audioProcessor.getAPVTS(), "waveform", waveformBox);
 
     gateButton.setButtonText ("Gate");
     addAndMakeVisible (gateButton);
@@ -82,7 +86,6 @@ SineSynthAudioProcessorEditor::~SineSynthAudioProcessorEditor()
 //==============================================================================
 void SineSynthAudioProcessorEditor::paint (juce::Graphics& g)
 {
-    // (Our component is opaque, so we must completely fill the background with a solid colour)
     g.fillAll (juce::Colours::black);
 
     g.setColour (juce::Colours::white);
@@ -92,7 +95,8 @@ void SineSynthAudioProcessorEditor::paint (juce::Graphics& g)
 
 void SineSynthAudioProcessorEditor::resized ()
 {
-    cutoffSlider.setBounds(260, 70, 100, 100);
+    cutoffSlider.setBounds (260, 70, 100, 100);
+    waveformBox.setBounds (380, 100, 120, 24);
     gateButton.setBounds (20, 20, 80, 30);
 
     gainSlider.setBounds (20, 70, 100, 100);
