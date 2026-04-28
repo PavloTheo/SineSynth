@@ -146,6 +146,30 @@ juce::AudioProcessorValueTreeState::ParameterLayout SineSynthAudioProcessor::cre
         juce::NormalisableRange<float> (20.0f, 20000.0f, 1.0f, 0.5f),
         20000.0f));
 
+    params.push_back (std::make_unique<juce::AudioParameterChoice> (
+        juce::ParameterID { "waveform", 1 },
+        "Waveform",
+        juce::StringArray { "Sine", "Saw", "Square" },
+        0));
+
+    params.push_back (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { "lfoRate", 1 },
+        "LFO Rate",
+        juce::NormalisableRange<float> (0.1f, 20.0f, 0.01f),
+        2.0f));
+
+    params.push_back (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { "lfoDepth", 1 },
+        "LFO Depth",
+        juce::NormalisableRange<float> (0.0f, 1.0f, 0.001f),
+        0.0f));
+
+    params.push_back (std::make_unique<juce::AudioParameterChoice> (
+        juce::ParameterID { "lfoTarget", 1 },
+        "LFO Target",
+        juce::StringArray { "Amplitude", "Pitch", "Cutoff" },
+        0));
+
     return { params.begin(), params.end() };
 }
 
@@ -156,14 +180,19 @@ void SineSynthAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBl
 
     currentSampleRate = sampleRate;
     phase = 0.0;
+    lfoPhase = 0.0;
 
     smoothedGain.reset (sampleRate, 0.05);
     smoothedFrequency.reset (sampleRate, 0.02);
     smoothedCutoff.reset (sampleRate, 0.05);
+    smoothedLfoRate.reset (sampleRate, 0.05);
+    smoothedLfoDepth.reset (sampleRate, 0.05);
 
     smoothedGain.setCurrentAndTargetValue (apvts.getRawParameterValue ("gain")->load());
     smoothedFrequency.setCurrentAndTargetValue (apvts.getRawParameterValue ("frequency")->load());
     smoothedCutoff.setCurrentAndTargetValue (apvts.getRawParameterValue ("cutoff")->load());
+    smoothedLfoRate.setCurrentAndTargetValue (apvts.getRawParameterValue ("lfoRate")->load());
+    smoothedLfoDepth.setCurrentAndTargetValue (apvts.getRawParameterValue ("lfoDepth")->load());
 
     adsr.setSampleRate (sampleRate);
 
@@ -216,6 +245,8 @@ void SineSynthAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
     smoothedGain.setTargetValue (apvts.getRawParameterValue ("gain")->load());
     smoothedFrequency.setTargetValue (apvts.getRawParameterValue ("frequency")->load());
     smoothedCutoff.setTargetValue (apvts.getRawParameterValue ("cutoff")->load());
+    smoothedLfoRate.setTargetValue (apvts.getRawParameterValue ("lfoRate")->load());
+    smoothedLfoDepth.setTargetValue (apvts.getRawParameterValue ("lfoDepth")->load());
 
     adsrParams.attack = apvts.getRawParameterValue ("attack")->load();
     adsrParams.decay = apvts.getRawParameterValue ("decay")->load();
@@ -224,6 +255,8 @@ void SineSynthAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
     adsr.setParameters (adsrParams);
 
     const bool gateOn = apvts.getRawParameterValue ("gate")->load() > 0.5f;
+    const auto waveform = static_cast<int> (apvts.getRawParameterValue ("waveform")->load());
+    const auto lfoTarget = static_cast<int> (apvts.getRawParameterValue ("lfoTarget")->load());
 
     if (gateOn && ! wasGateOn)
         adsr.noteOn();
@@ -243,17 +276,48 @@ void SineSynthAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
         const auto currentGain = smoothedGain.getNextValue();
         const auto currentFrequency = smoothedFrequency.getNextValue();
         const auto currentCutoff = smoothedCutoff.getNextValue();
+        const auto currentLfoRate = smoothedLfoRate.getNextValue();
+        const auto currentLfoDepth = smoothedLfoDepth.getNextValue();
+
+        const float lfoRaw = std::sin (lfoPhase);
+
+        auto modulatedFrequency = currentFrequency;
+
+        if (lfoTarget == 1)
+            modulatedFrequency *= 1.0f + (lfoRaw * currentLfoDepth * 0.1f);
+
+        auto modulatedCutoff = currentCutoff;
+
+        if (lfoTarget == 2)
+            modulatedCutoff *= 1.0f + (lfoRaw * currentLfoDepth);
 
         const auto limitedCutoff = juce::jlimit (20.0f,
-                                                 static_cast<float> (currentSampleRate * 0.5 - 1.0),
-                                                 currentCutoff);
+                                                 20000.0f,
+                                                 juce::jlimit (20.0f,
+                                                               static_cast<float> (currentSampleRate * 0.5 - 1.0),
+                                                               modulatedCutoff));
         const auto coefficients = juce::IIRCoefficients::makeLowPass (currentSampleRate, limitedCutoff);
 
         for (auto& filter : filters)
             filter.setCoefficients (coefficients);
 
         const float env = adsr.getNextSample();
-        const float output = currentGain * std::sin ((float) phase) * env;
+
+        float oscillatorSample = std::sin ((float) phase);
+
+        if (waveform == 1)
+            oscillatorSample = static_cast<float> ((phase / juce::MathConstants<double>::pi) - 1.0);
+        else if (waveform == 2)
+            oscillatorSample = phase < juce::MathConstants<double>::pi ? 1.0f : -1.0f;
+
+        float output = currentGain * oscillatorSample * env;
+
+        if (lfoTarget == 0)
+        {
+            const float lfoUnipolar = 0.5f + 0.5f * lfoRaw;
+            const float lfoMultiplier = juce::jmap (currentLfoDepth, 0.0f, 1.0f, 1.0f, lfoUnipolar);
+            output *= lfoMultiplier;
+        }
 
         for (int channel = 0; channel < totalNumOutputChannels; ++channel)
         {
@@ -261,10 +325,14 @@ void SineSynthAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, ju
             buffer.setSample (channel, sample, filteredOutput);
         }
 
-        phase += 2.0 * juce::MathConstants<double>::pi * currentFrequency / currentSampleRate;
+        phase += 2.0 * juce::MathConstants<double>::pi * modulatedFrequency / currentSampleRate;
+        lfoPhase += 2.0 * juce::MathConstants<double>::pi * currentLfoRate / currentSampleRate;
 
         if (phase >= 2.0 * juce::MathConstants<double>::pi)
             phase -= 2.0 * juce::MathConstants<double>::pi;
+
+        if (lfoPhase >= 2.0 * juce::MathConstants<double>::pi)
+            lfoPhase -= 2.0 * juce::MathConstants<double>::pi;
     }
 }
 

@@ -30,17 +30,37 @@ SineSynthAudioProcessorEditor::SineSynthAudioProcessorEditor (SineSynthAudioProc
     frequencySlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 60, 20);
     addAndMakeVisible (frequencySlider);
 
+    lfoRateSlider.setSliderStyle (juce::Slider::Rotary);
+    lfoRateSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 60, 20);
+    addAndMakeVisible (lfoRateSlider);
+
+    lfoDepthSlider.setSliderStyle (juce::Slider::Rotary);
+    lfoDepthSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 60, 20);
+    addAndMakeVisible (lfoDepthSlider);
+
     gainAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
         audioProcessor.getAPVTS(), "gain", gainSlider);
 
     frequencyAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
         audioProcessor.getAPVTS(), "frequency", frequencySlider);
 
+    lfoRateAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
+        audioProcessor.getAPVTS(), "lfoRate", lfoRateSlider);
+
+    lfoDepthAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
+        audioProcessor.getAPVTS(), "lfoDepth", lfoDepthSlider);
+
     waveformBox.addItemList ({ "Sine", "Saw", "Square" }, 1);
     addAndMakeVisible (waveformBox);
 
     waveformAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
         audioProcessor.getAPVTS(), "waveform", waveformBox);
+
+    lfoTargetBox.addItemList ({ "Amplitude", "Pitch", "Cutoff" }, 1);
+    addAndMakeVisible (lfoTargetBox);
+
+    lfoTargetAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (
+        audioProcessor.getAPVTS(), "lfoTarget", lfoTargetBox);
 
     gateButton.setButtonText ("Gate");
     addAndMakeVisible (gateButton);
@@ -76,7 +96,7 @@ SineSynthAudioProcessorEditor::SineSynthAudioProcessorEditor (SineSynthAudioProc
     releaseAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (
         audioProcessor.getAPVTS(), "release", releaseSlider);
 
-    setSize (520, 300);
+    setSize (640, 300);
 }
 
 SineSynthAudioProcessorEditor::~SineSynthAudioProcessorEditor()
@@ -96,11 +116,14 @@ void SineSynthAudioProcessorEditor::paint (juce::Graphics& g)
 void SineSynthAudioProcessorEditor::resized ()
 {
     cutoffSlider.setBounds (260, 70, 100, 100);
-    waveformBox.setBounds (380, 100, 120, 24);
+    waveformBox.setBounds (380, 80, 120, 24);
+    lfoTargetBox.setBounds (380, 120, 120, 24);
     gateButton.setBounds (20, 20, 80, 30);
 
     gainSlider.setBounds (20, 70, 100, 100);
     frequencySlider.setBounds (140, 70, 100, 100);
+    lfoRateSlider.setBounds (520, 70, 100, 100);
+    lfoDepthSlider.setBounds (520, 190, 100, 80);
 
     attackSlider.setBounds (20, 190, 80, 80);
     decaySlider.setBounds (110, 190, 80, 80);
